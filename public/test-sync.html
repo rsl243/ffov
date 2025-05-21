@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test de Synchronisation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        .card {
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            border-left: 4px solid #2196F3;
+            background-color: #e3f2fd;
+            display: none;
+        }
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test de Synchronisation des Produits</h1>
+    
+    <div class="card">
+        <h2>Synchronisation d'un vendeur spécifique</h2>
+        <p>Entrez l'ID du vendeur et cliquez sur le bouton pour synchroniser ses produits.</p>
+        
+        <input type="text" id="vendorId" placeholder="ID du vendeur" value="ffb75504-ef35-486f-b609-ae5dc412be00">
+        <button onclick="syncVendor()">Synchroniser ce vendeur</button>
+    </div>
+    
+    <div class="card">
+        <h2>Synchronisation de tous les vendeurs</h2>
+        <p>Cliquez sur le bouton pour synchroniser les produits de tous les vendeurs actifs.</p>
+        
+        <button onclick="syncAllVendors()">Synchroniser tous les vendeurs</button>
+    </div>
+    
+    <div id="result">
+        <h3>Résultat:</h3>
+        <pre id="resultContent"></pre>
+    </div>
+    
+    <script>
+        async function syncVendor() {
+            const vendorId = document.getElementById('vendorId').value.trim();
+            if (!vendorId) {
+                alert('Veuillez entrer un ID de vendeur valide');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/vendors/${vendorId}/auto-sync`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                showResult(result);
+            } catch (error) {
+                showResult({ error: error.message });
+            }
+        }
+        
+        async function syncAllVendors() {
+            try {
+                const response = await fetch('/api/cron/sync-all-vendors', {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                showResult(result);
+            } catch (error) {
+                showResult({ error: error.message });
+            }
+        }
+        
+        function showResult(result) {
+            const resultDiv = document.getElementById('result');
+            const resultContent = document.getElementById('resultContent');
+            
+            resultContent.textContent = JSON.stringify(result, null, 2);
+            resultDiv.style.display = 'block';
+            
+            // Scroll to result
+            resultDiv.scrollIntoView({ behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>

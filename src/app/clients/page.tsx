@@ -1,0 +1,249 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { FiSearch, FiFilter, FiMail, FiPhone, FiShoppingBag, FiDownload, FiEye, FiRefreshCw, FiGift, FiX, FiUserPlus } from 'react-icons/fi';
+import PageHeader from '@/components/PageHeader';
+import Sidebar from '@/components/Sidebar';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
+import { Client, getClients, getClientsStats } from '@/lib/clientsService';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+
+export default function ClientsPage() {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    total: 0,
+    active: 0,
+    inactive: 0,
+    newThisMonth: 0
+  });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | 'all'>('all');
+  
+  const { user } = useAuth();
+  
+  // Charger les clients depuis Supabase
+  useEffect(() => {
+    const loadClients = async () => {
+      if (!user) return;
+      
+      setLoading(true);
+      try {
+        const response = await getClients(currentPage, 10, statusFilter, searchTerm);
+        setClients(response.clients);
+        setTotalPages(response.totalPages);
+        
+        // Charger les statistiques
+        const statsData = await getClientsStats();
+        setStats(statsData);
+      } catch (error) {
+        console.error("Erreur lors du chargement des clients:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadClients();
+  }, [user, currentPage, statusFilter, searchTerm]);
+  
+  // Gérer la recherche
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value);
+    setCurrentPage(1); // Réinitialiser à la première page
+  };
+  
+  // Gérer le changement de filtre de statut
+  const handleStatusFilterChange = (status: 'active' | 'inactive' | 'all') => {
+    setStatusFilter(status);
+    setCurrentPage(1); // Réinitialiser à la première page
+  };
+  
+  // Gérer la pagination
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+  
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
+        <PageHeader title="Clients" />
+      
+      {/* Main content */}
+      <main className="flex-1 overflow-y-auto p-6">
+        {/* En-tête avec statistiques */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Total clients</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.total}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Clients actifs</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.active}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Clients inactifs</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.inactive}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Nouveaux ce mois</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.newThisMonth}</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Recherche et filtres */}
+        <div className="bg-white p-4 rounded-lg shadow-sm mb-6">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="relative flex-grow max-w-md">
+              <FiSearch className="absolute left-3 top-3 text-gray-400" />
+              <Input
+                type="text"
+                placeholder="Rechercher un client..."
+                className="pl-10"
+                value={searchTerm}
+                onChange={handleSearch}
+              />
+            </div>
+            <div className="flex space-x-2">
+              <Button 
+                variant={statusFilter === 'all' ? "default" : "outline"}
+                onClick={() => handleStatusFilterChange('all')}
+              >
+                Tous
+              </Button>
+              <Button 
+                variant={statusFilter === 'active' ? "default" : "outline"}
+                onClick={() => handleStatusFilterChange('active')}
+              >
+                Actifs
+              </Button>
+              <Button 
+                variant={statusFilter === 'inactive' ? "default" : "outline"}
+                onClick={() => handleStatusFilterChange('inactive')}
+              >
+                Inactifs
+              </Button>
+            </div>
+            <Button className="ml-auto">
+              <FiUserPlus className="mr-2" />
+              Nouveau client
+            </Button>
+          </div>
+        </div>
+
+        {/* Liste des clients */}
+        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          {loading ? (
+            <div className="p-8 text-center">Chargement des clients...</div>
+          ) : clients.length === 0 ? (
+            <div className="p-8 text-center">
+              Aucun client trouvé. {searchTerm && 'Essayez de modifier votre recherche.'}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Commandes</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dépenses</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {clients.map((client) => (
+                    <tr key={client.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">{client.name}</div>
+                            <div className="text-sm text-gray-500">{client.address}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">{client.email}</div>
+                        <div className="text-sm text-gray-500">{client.phone}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">{client.totalOrders} commandes</div>
+                        <div className="text-sm text-gray-500">Dernière: {client.lastOrder}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {client.totalSpent}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <Badge variant={client.status === 'active' ? 'default' : 'secondary'}>
+                          {client.status === 'active' ? 'Actif' : 'Inactif'}
+                        </Badge>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex space-x-2">
+                          <Button variant="outline" size="sm">
+                            <FiMail className="mr-1" />
+                            Contacter
+                          </Button>
+                          <Button variant="outline" size="sm">
+                            <FiEye className="mr-1" />
+                            Détails
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="px-6 py-4 flex justify-between items-center border-t">
+              <Button 
+                variant="outline" 
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+              >
+                Précédent
+              </Button>
+              <div className="text-sm text-gray-700">
+                Page {currentPage} sur {totalPages}
+              </div>
+              <Button 
+                variant="outline" 
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+              >
+                Suivant
+              </Button>
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}

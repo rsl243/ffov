@@ -1,0 +1,27 @@
+[
+  {
+    "externalId": "10158818722138",
+    "price": null,
+    "description": "",
+    "stock": 1,
+    "imageUrl": "",
+    "imageUrls": [],
+    "productUrl": "https://www.ledressingdecloe.com/products/combinaison-florence-beige-copie",
+    "sku": "10158818722138",
+    "brand": "",
+    "category": "variable",
+    "colors": [],
+    "sizes": [],
+    "variants": [
+      {
+        "id": 51025334632794,
+        "sku": "",
+        "color": "",
+        "size": "",
+        "price": 29.95
+      }
+    ],
+    "qualityScore": 95,
+    "isComplete": true
+  }
+]

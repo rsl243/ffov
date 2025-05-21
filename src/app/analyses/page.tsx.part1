@@ -1,0 +1,31 @@
+'use client';
+
+import React, { useState, useEffect, useRef } from 'react';
+import { FiCalendar, FiDownload, FiRefreshCw, FiTrendingUp, FiTrendingDown, FiUsers, FiShoppingBag, FiPackage, FiEye, FiInfo, FiDollarSign, FiBarChart2, FiActivity, FiUserPlus, FiX } from 'react-icons/fi';
+import PageHeader from '@/components/PageHeader';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
+import { 
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, 
+  Tooltip, Legend, ResponsiveContainer, Area, AreaChart,
+  ReferenceLine, Cell
+} from 'recharts';
+import { getSalesData, getDashboardData, PeriodData, DashboardData, DataPoint } from '@/lib/analyticsService';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+// Formatage compact des valeurs monétaires pour l'affichage
+const formatCompactCurrency = (value: number) => {
+  if (value >= 1000000) {
+    return `${(value / 1000000).toFixed(1)}M €`;
+  } else if (value >= 1000) {
+    return `${(value / 1000).toFixed(0)}k €`;
+  } else {
+    return `${value} €`;
+  }
+};
+
+// Formatage des nombres pour l'affichage
+const formatNumber = (value: number) => {
+  return new Intl.NumberFormat('fr-FR').format(value);
+};

@@ -1,0 +1,138 @@
+  // Rendu pour les promotions
+  const renderPromotions = () => {
+    return (
+      <div className="p-6">
+        <div className="flex flex-col md:flex-row justify-between mb-6">
+          <div>
+            <h2 className="text-xl font-semibold">Promotions</h2>
+            <p className="text-gray-500 mt-1">Gérez vos codes promotionnels</p>
+          </div>
+          
+          <div className="flex flex-wrap gap-2 mt-4 md:mt-0">
+            <div className="relative">
+              <FiSearch className="absolute left-3 top-3 text-gray-400" />
+              <Input
+                type="text"
+                placeholder="Rechercher une promotion..."
+                className="pl-10 w-full md:w-60"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            
+            <Button variant="default">
+              <FiPlus className="mr-2" />
+              Nouvelle promotion
+            </Button>
+            
+            <Button variant="outline" onClick={() => setShowExportModal(true)}>
+              <FiDownload className="mr-2" />
+              Exporter
+            </Button>
+          </div>
+        </div>
+        
+        {/* Liste des promotions */}
+        {loading.promotions ? (
+          <div className="grid grid-cols-1 gap-4">
+            {Array(4).fill(0).map((_, index) => (
+              <Card key={index} className="animate-pulse">
+                <CardContent className="p-6">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="h-5 bg-gray-200 rounded w-1/3 mb-2"></div>
+                      <div className="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
+                      <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+                    </div>
+                    <div className="h-6 bg-gray-200 rounded-full w-16"></div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : filteredPromotions.length === 0 ? (
+          <div className="text-center py-10">
+            <FiTag className="mx-auto h-12 w-12 text-gray-400" />
+            <h3 className="mt-2 text-sm font-medium text-gray-900">Aucune promotion trouvée</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              Créez une nouvelle promotion pour attirer vos clients.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4">
+            {filteredPromotions.map((promotion) => (
+              <Card key={promotion.id} className="overflow-hidden">
+                <CardContent className="p-4">
+                  <div className="flex flex-col md:flex-row justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center mb-2">
+                        <h3 className="font-medium">{promotion.name}</h3>
+                        <Badge className="ml-2" variant={
+                          promotion.status === 'active' ? 'default' : 
+                          promotion.status === 'expired' ? 'secondary' : 
+                          'outline'
+                        }>
+                          {promotion.status === 'active' ? 'Active' : 
+                           promotion.status === 'expired' ? 'Expirée' : 
+                           'Programmée'}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-gray-500">{promotion.description}</p>
+                      
+                      <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-2">
+                        <div>
+                          <p className="text-xs text-gray-500">Remise</p>
+                          <p className="text-sm font-medium">
+                            {promotion.type === 'percentage' 
+                              ? `${promotion.discount}%` 
+                              : promotion.type === 'fixed' 
+                                ? formatCurrency(promotion.discount) 
+                                : 'Livraison gratuite'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Utilisation</p>
+                          <p className="text-sm font-medium">{promotion.uses} utilisations</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Valide jusqu'au</p>
+                          <p className="text-sm font-medium">{promotion.validUntil}</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-4 md:mt-0 md:ml-4 flex md:flex-col justify-end">
+                      <Button
+                        variant="outline"
+                        className="mr-2 md:mr-0 md:mb-2"
+                        disabled={promotion.status === 'expired'}
+                      >
+                        <FiEdit className="mr-2" />
+                        Modifier
+                      </Button>
+                      <Button
+                        variant={promotion.status === 'active' ? 'destructive' : 'default'}
+                        disabled={promotion.status === 'expired'}
+                      >
+                        {promotion.status === 'active' ? (
+                          <>
+                            <FiX className="mr-2" />
+                            Désactiver
+                          </>
+                        ) : (
+                          <>
+                            <FiCheckCircle className="mr-2" />
+                            Activer
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };

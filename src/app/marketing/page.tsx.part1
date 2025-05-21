@@ -1,0 +1,104 @@
+"use client";
+
+import React, { useState, useEffect } from 'react';
+import { FiTrendingUp, FiShoppingCart, FiUsers, FiTag, FiSearch, FiFilter, FiCalendar, FiEye, FiShoppingBag, FiArrowUp, FiArrowDown, FiMail, FiCheckCircle, FiPlus, FiUserPlus, FiRefreshCw, FiStar, FiClock, FiAlertCircle, FiX, FiDownload, FiFileText } from 'react-icons/fi';
+import Image from 'next/image';
+import PageHeader from '@/components/PageHeader';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
+import { 
+  Product, 
+  AbandonedCart, 
+  Promotion, 
+  CustomerAnalytics, 
+  getAllMarketingData, 
+  getPopularProducts, 
+  getAbandonedCarts, 
+  createPromotion, 
+  markCartAsEmailed,
+  getPromotions,
+  getCustomerAnalytics 
+} from '@/lib/financeService';
+import Notification from '@/components/Notification';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+export default function MarketingPage() {
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<'products' | 'carts' | 'customers' | 'promotions'>('products');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showPromoModal, setShowPromoModal] = useState(false);
+  const [selectedCart, setSelectedCart] = useState<AbandonedCart | null>(null);
+  const [promoData, setPromoData] = useState({
+    code: '',
+    reduction: 10,
+    dateExpiration: '',
+    message: '',
+  });
+  const [notification, setNotification] = useState({ show: false, message: '' });
+  
+  // État pour les données marketing
+  const [marketingData, setMarketingData] = useState<{
+    popularProducts: Product[];
+    abandonedCarts: AbandonedCart[];
+    promotions: Promotion[];
+    customerAnalytics: CustomerAnalytics;
+  }>({
+    popularProducts: [],
+    abandonedCarts: [],
+    promotions: [],
+    customerAnalytics: {
+      totalCustomers: 0,
+      newCustomersThisMonth: 0,
+      repeatPurchaseRate: 0,
+      averageOrderValue: 0,
+      topSources: [],
+      topCities: [],
+      demographicData: {
+        gender: [],
+        ageRanges: []
+      }
+    }
+  });
+  
+  // État pour le chargement
+  const [loading, setLoading] = useState({
+    products: true,
+    carts: true,
+    promotions: true,
+    analytics: true,
+    all: true
+  });
+  
+  // Ajout de l'état pour les filtres
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState({
+    dateRange: {
+      start: '',
+      end: ''
+    },
+    minViews: 0,
+    minConversions: 0,
+    minRevenue: 0,
+    sortBy: 'views', // 'views', 'conversions', 'conversionRate', 'revenue'
+    sortOrder: 'desc' // 'asc', 'desc'
+  });
+
+  // État pour le modal d'export
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'csv' | 'excel' | 'pdf'>('csv');
+
+  // Formatage des nombres pour l'affichage
+  const formatNumber = (num: number) => {
+    return new Intl.NumberFormat('fr-FR').format(num);
+  };
+
+  const formatCurrency = (num: number) => {
+    return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(num);
+  };
+
+  const formatPercent = (num: number) => {
+    return new Intl.NumberFormat('fr-FR', { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 2 }).format(num/100);
+  };

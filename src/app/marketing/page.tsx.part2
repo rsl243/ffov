@@ -1,0 +1,231 @@
+  // Correction: Importer depuis marketingService, pas financeService
+  useEffect(() => {
+    if (!user) return;
+    
+    // Récupérer toutes les données marketing au chargement
+    const fetchAllMarketingData = async () => {
+      setLoading(prev => ({ ...prev, all: true }));
+      try {
+        const data = await getAllMarketingData();
+        setMarketingData(data);
+      } catch (error) {
+        console.error("Erreur lors du chargement des données marketing:", error);
+      } finally {
+        setLoading(prev => ({ ...prev, all: false }));
+      }
+    };
+    
+    fetchAllMarketingData();
+  }, [user]);
+  
+  // Charger les données spécifiques lors du changement d'onglet
+  useEffect(() => {
+    if (!user) return;
+    
+    const fetchTabData = async () => {
+      switch (activeTab) {
+        case 'products':
+          setLoading(prev => ({ ...prev, products: true }));
+          try {
+            const products = await getPopularProducts(
+              filters.dateRange.start && filters.dateRange.end
+                ? { start: filters.dateRange.start, end: filters.dateRange.end }
+                : undefined,
+              filters.sortBy,
+              filters.sortOrder as 'asc' | 'desc'
+            );
+            setMarketingData(prev => ({ ...prev, popularProducts: products }));
+          } catch (error) {
+            console.error("Erreur lors du chargement des produits populaires:", error);
+          } finally {
+            setLoading(prev => ({ ...prev, products: false }));
+          }
+          break;
+          
+        case 'carts':
+          setLoading(prev => ({ ...prev, carts: true }));
+          try {
+            const carts = await getAbandonedCarts();
+            setMarketingData(prev => ({ ...prev, abandonedCarts: carts }));
+          } catch (error) {
+            console.error("Erreur lors du chargement des paniers abandonnés:", error);
+          } finally {
+            setLoading(prev => ({ ...prev, carts: false }));
+          }
+          break;
+          
+        case 'promotions':
+          setLoading(prev => ({ ...prev, promotions: true }));
+          try {
+            const promos = await getPromotions();
+            setMarketingData(prev => ({ ...prev, promotions: promos }));
+          } catch (error) {
+            console.error("Erreur lors du chargement des promotions:", error);
+          } finally {
+            setLoading(prev => ({ ...prev, promotions: false }));
+          }
+          break;
+          
+        case 'customers':
+          setLoading(prev => ({ ...prev, analytics: true }));
+          try {
+            const analytics = await getCustomerAnalytics();
+            setMarketingData(prev => ({ ...prev, customerAnalytics: analytics }));
+          } catch (error) {
+            console.error("Erreur lors du chargement des analytics clients:", error);
+          } finally {
+            setLoading(prev => ({ ...prev, analytics: false }));
+          }
+          break;
+      }
+    };
+    
+    fetchTabData();
+  }, [user, activeTab, filters]);
+
+  // Appliquer les filtres aux données
+  const applyFilters = (data: any[]) => {
+    return data.filter(item => {
+      // Filtrer par date si une plage de dates est définie
+      if (filters.dateRange.start && filters.dateRange.end && 'date' in item) {
+        const itemDate = new Date(item.date);
+        const startDate = new Date(filters.dateRange.start);
+        const endDate = new Date(filters.dateRange.end);
+        if (itemDate < startDate || itemDate > endDate) return false;
+      }
+
+      // Filtres spécifiques selon le type d'élément
+      if ('views' in item) {
+        // Produits
+        if (item.views < filters.minViews) return false;
+        if (item.conversions < filters.minConversions) return false;
+        if (item.revenue < filters.minRevenue) return false;
+      }
+
+      // Filtrer par terme de recherche
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        if ('name' in item && item.name.toLowerCase().includes(searchLower)) return true;
+        if ('customer' in item && item.customer.name.toLowerCase().includes(searchLower)) return true;
+        return false;
+      }
+
+      return true;
+    });
+  };
+
+  // Filtrer les données selon le tab actif et les filtres
+  const filteredProducts = applyFilters(marketingData.popularProducts);
+  const filteredCarts = applyFilters(marketingData.abandonedCarts);
+  const filteredPromotions = applyFilters(marketingData.promotions);
+
+  // Réinitialiser les filtres
+  const resetFilters = () => {
+    setFilters({
+      dateRange: {
+        start: '',
+        end: ''
+      },
+      minViews: 0,
+      minConversions: 0,
+      minRevenue: 0,
+      sortBy: 'views',
+      sortOrder: 'desc'
+    });
+    
+    // Recharger les données avec les filtres réinitialisés
+    if (activeTab === 'products') {
+      getPopularProducts().then(products => {
+        setMarketingData(prev => ({ ...prev, popularProducts: products }));
+      });
+    }
+  };
+
+  // Gérer l'ouverture de la modale de promo
+  const handleOpenPromo = (cart: AbandonedCart) => {
+    setSelectedCart(cart);
+    
+    // Générer un code promo unique
+    const uniqueCode = `RECUP${cart.id.substring(0, 4)}${Math.floor(Math.random() * 1000)}`;
+    
+    // Définir une date d'expiration par défaut (30 jours à partir d'aujourd'hui)
+    const expirationDate = new Date();
+    expirationDate.setDate(expirationDate.getDate() + 30);
+    const formattedDate = expirationDate.toISOString().split('T')[0];
+    
+    setPromoData({
+      code: uniqueCode,
+      reduction: 10,
+      dateExpiration: formattedDate,
+      message: `Bonjour ${cart.customer.name},\n\nNous sommes heureux de vous offrir un code de réduction de 10% sur votre prochaine commande.\nUtilisez le code ${uniqueCode} avant le ${new Date(formattedDate).toLocaleDateString('fr-FR')}.\n\nCordialement,\nL'équipe Faet`
+    });
+    setShowPromoModal(true);
+  };
+  
+  // Gérer l'envoi de la promo
+  const handleSendPromo = async () => {
+    if (!selectedCart) return;
+    
+    try {
+      // Créer la promotion dans Supabase
+      const promotion = await createPromotion(
+        promoData.code,
+        `Code de récupération pour ${selectedCart.customer.name}`,
+        promoData.reduction,
+        'percentage',
+        promoData.dateExpiration
+      );
+      
+      if (promotion) {
+        // Marquer le panier comme ayant reçu un email
+        await markCartAsEmailed(selectedCart.id);
+        
+        // Mettre à jour la liste des paniers abandonnés
+        const updatedCarts = await getAbandonedCarts();
+        setMarketingData(prev => ({ ...prev, abandonedCarts: updatedCarts }));
+        
+        // Fermer la modale après envoi
+        setShowPromoModal(false);
+        
+        // Afficher la notification de succès
+        setNotification({
+          show: true,
+          message: `Offre promotionnelle envoyée à ${selectedCart.customer.name}`
+        });
+        
+        // Fermer la notification après quelques secondes
+        setTimeout(() => {
+          setNotification({ show: false, message: '' });
+        }, 5000);
+      }
+    } catch (error) {
+      console.error("Erreur lors de l'envoi de la promotion:", error);
+      setNotification({
+        show: true,
+        message: `Erreur: Impossible d'envoyer l'offre promotionnelle`
+      });
+      
+      setTimeout(() => {
+        setNotification({ show: false, message: '' });
+      }, 5000);
+    }
+  };
+  
+  // Gérer l'exportation des données
+  const handleExportData = () => {
+    // Simuler l'exportation (dans une application réelle, cela générerait un fichier)
+    console.log(`Exporting data in ${exportFormat} format...`);
+    
+    // Fermer la modale
+    setShowExportModal(false);
+    
+    // Afficher la notification
+    setNotification({
+      show: true,
+      message: `Données exportées au format ${exportFormat.toUpperCase()}`
+    });
+    
+    setTimeout(() => {
+      setNotification({ show: false, message: '' });
+    }, 5000);
+  };

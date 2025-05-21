@@ -1,0 +1,260 @@
+// Composant pour les cartes de statistiques
+interface StatCardProps {
+  title: string;
+  value: string | number;
+  change: string;
+  icon: React.ElementType;
+  trend: 'up' | 'down' | 'neutral';
+}
+
+// Composant StatCard qui affiche une statistique avec sa variation
+const StatCard = ({ title, value, change, icon: Icon, trend }: StatCardProps) => {
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between mb-2">
+          <div className="bg-gray-100 p-2 rounded-full">
+            <Icon className="text-gray-700" />
+          </div>
+          <div className={`flex items-center rounded-full px-2 py-1 text-xs ${
+            trend === 'up' ? 'bg-green-100 text-green-800' : 
+            trend === 'down' ? 'bg-red-100 text-red-800' : 
+            'bg-gray-100 text-gray-800'
+          }`}>
+            {trend === 'up' ? <FiTrendingUp className="mr-1" /> : 
+             trend === 'down' ? <FiTrendingDown className="mr-1" /> : 
+             null}
+            {change}
+          </div>
+        </div>
+        <h3 className="text-2xl font-bold">{value}</h3>
+        <p className="text-gray-500 text-sm">{title}</p>
+      </CardContent>
+    </Card>
+  );
+};
+
+// Types pour les composants de graphiques
+interface ChartProps {
+  data: DataPoint[];
+  title: string;
+  color?: string;
+  previousPeriodData?: DataPoint[] | null;
+  currency?: boolean;
+}
+
+interface TooltipProps {
+  active?: boolean;
+  payload?: Array<{
+    value: number;
+    payload: {
+      name: string;
+      value: number;
+      previousValue: number;
+    };
+  }>;
+  label?: string;
+}
+
+// Composant personnalisé pour l'infobulle du graphique
+const CustomTooltip = ({ active, payload, label }: TooltipProps) => {
+  if (active && payload && payload.length) {
+    const currentValue = payload[0].value;
+    const previousValue = payload[0].payload.previousValue || 0;
+    const change = previousValue !== 0 
+      ? ((currentValue - previousValue) / previousValue) * 100 
+      : currentValue > 0 ? 100 : 0;
+    
+    return (
+      <div className="custom-tooltip bg-white p-3 shadow rounded border">
+        <p className="label mb-2 font-medium">{label}</p>
+        <p className="value">
+          Valeur : <span className="font-bold">{formatCompactCurrency(currentValue)}</span>
+        </p>
+        {previousValue > 0 && (
+          <p className="previous-value text-gray-600">
+            Période précédente : {formatCompactCurrency(previousValue)}
+          </p>
+        )}
+        {previousValue > 0 && (
+          <p className={`change ${change >= 0 ? 'text-green-600' : 'text-red-600'} mt-1`}>
+            {change >= 0 ? <FiTrendingUp className="inline mr-1" /> : <FiTrendingDown className="inline mr-1" />}
+            {change.toFixed(1)}%
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  return null;
+};
+
+// Composant pour le graphique linéaire moderne
+const ModernLineChart = ({ data, title, color = '#3b82f6', previousPeriodData = null, currency = false }: ChartProps) => {
+  // Préparer les données pour le graphique en incluant les valeurs de la période précédente
+  const chartData = data.map((item, index) => {
+    return {
+      name: item.label,
+      value: item.value,
+      previousValue: previousPeriodData && previousPeriodData[index] ? previousPeriodData[index].value : 0
+    };
+  });
+
+  // Trouver les valeurs min et max pour l'axe Y
+  const allValues = chartData.flatMap(item => [item.value, item.previousValue]);
+  const maxValue = Math.max(...allValues);
+  const minValue = Math.min(...allValues.filter(v => v > 0));
+  
+  // Utiliser un formatage adapté selon le type de données (monétaire ou nombre)
+  const valueFormatter = currency 
+    ? (value: number) => formatCompactCurrency(value)
+    : (value: number) => formatNumber(value);
+
+  return (
+    <Card className="h-full">
+      <CardHeader>
+        <CardTitle className="text-lg">{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id={`colorGradient-${title}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={color} stopOpacity={0.8}/>
+                  <stop offset="95%" stopColor={color} stopOpacity={0.1}/>
+                </linearGradient>
+              </defs>
+              <XAxis 
+                dataKey="name" 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fontSize: 12 }}
+              />
+              <YAxis 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fontSize: 12 }}
+                domain={[minValue > 0 ? minValue * 0.9 : 0, maxValue * 1.1]} 
+                tickFormatter={valueFormatter}
+              />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <Tooltip content={<CustomTooltip />} />
+              
+              {/* Ligne pour la période précédente */}
+              {previousPeriodData && previousPeriodData.length > 0 && (
+                <Line 
+                  type="monotone" 
+                  dataKey="previousValue" 
+                  stroke="#94a3b8" 
+                  strokeWidth={2}
+                  strokeDasharray="5 5" 
+                  dot={false} 
+                  activeDot={false}
+                  name="Période précédente"
+                />
+              )}
+              
+              {/* Zone colorée et ligne pour la période actuelle */}
+              <Area 
+                type="monotone" 
+                dataKey="value" 
+                stroke={color} 
+                strokeWidth={3}
+                fillOpacity={1} 
+                fill={`url(#colorGradient-${title})`} 
+                activeDot={{ r: 6, strokeWidth: 0 }}
+                name="Période actuelle"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+// Composant pour le graphique à barres moderne
+const ModernBarChart = ({ data, title, color = '#3b82f6', previousPeriodData = null, currency = false }: ChartProps) => {
+  // Préparer les données pour le graphique
+  const chartData = data.map((item, index) => {
+    return {
+      name: item.label,
+      value: item.value,
+      previousValue: previousPeriodData && previousPeriodData[index] ? previousPeriodData[index].value : 0
+    };
+  });
+
+  // Trouver les valeurs min et max pour l'axe Y
+  const allValues = chartData.flatMap(item => [item.value, item.previousValue]);
+  const maxValue = Math.max(...allValues);
+  
+  // Utiliser un formatage adapté selon le type de données (monétaire ou nombre)
+  const valueFormatter = currency 
+    ? (value: number) => formatCompactCurrency(value)
+    : (value: number) => formatNumber(value);
+
+  return (
+    <Card className="h-full">
+      <CardHeader>
+        <CardTitle className="text-lg">{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+              <XAxis 
+                dataKey="name" 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fontSize: 12 }}
+              />
+              <YAxis 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fontSize: 12 }}
+                domain={[0, maxValue * 1.1]} 
+                tickFormatter={valueFormatter}
+              />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <Tooltip content={<CustomTooltip />} />
+              
+              {/* Barres pour la période précédente si disponible */}
+              {previousPeriodData && previousPeriodData.length > 0 && (
+                <Bar 
+                  dataKey="previousValue" 
+                  fill="#94a3b8" 
+                  radius={[4, 4, 0, 0]} 
+                  name="Période précédente"
+                  barSize={8}
+                />
+              )}
+              
+              {/* Barres pour la période actuelle */}
+              <Bar 
+                dataKey="value" 
+                fill={color} 
+                radius={[4, 4, 0, 0]} 
+                name="Période actuelle"
+                barSize={previousPeriodData ? 16 : 20}
+              >
+                {chartData.map((entry, index) => {
+                  // Comparer avec la période précédente pour déterminer la couleur
+                  const prev = entry.previousValue || 0;
+                  const current = entry.value;
+                  let fillColor = color;
+                  
+                  if (prev > 0) {
+                    fillColor = current >= prev ? '#22c55e' : '#ef4444';
+                  }
+                  
+                  return <Cell key={`cell-${index}`} fill={fillColor} />;
+                })}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};

@@ -1,0 +1,200 @@
+  // Rendu pour les produits populaires
+  const renderPopularProducts = () => {
+    return (
+      <div className="p-6">
+        <div className="flex flex-col md:flex-row justify-between mb-6">
+          <div>
+            <h2 className="text-xl font-semibold">Produits populaires</h2>
+            <p className="text-gray-500 mt-1">Suivez les performances de vos produits</p>
+          </div>
+          
+          <div className="flex flex-wrap gap-2 mt-4 md:mt-0">
+            <div className="relative">
+              <FiSearch className="absolute left-3 top-3 text-gray-400" />
+              <Input
+                type="text"
+                placeholder="Rechercher un produit..."
+                className="pl-10 w-full md:w-60"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            
+            <Button variant="outline" onClick={() => setShowFilters(!showFilters)}>
+              <FiFilter className="mr-2" />
+              Filtres
+            </Button>
+            
+            <Button variant="outline" onClick={() => setShowExportModal(true)}>
+              <FiDownload className="mr-2" />
+              Exporter
+            </Button>
+          </div>
+        </div>
+        
+        {/* Filtres étendus */}
+        {showFilters && (
+          <Card className="mb-6">
+            <CardContent className="p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date de début</label>
+                  <Input
+                    type="date"
+                    value={filters.dateRange.start}
+                    onChange={(e) => setFilters(prev => ({
+                      ...prev,
+                      dateRange: { ...prev.dateRange, start: e.target.value }
+                    }))}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date de fin</label>
+                  <Input
+                    type="date"
+                    value={filters.dateRange.end}
+                    onChange={(e) => setFilters(prev => ({
+                      ...prev,
+                      dateRange: { ...prev.dateRange, end: e.target.value }
+                    }))}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Vues minimum</label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={filters.minViews}
+                    onChange={(e) => setFilters(prev => ({
+                      ...prev,
+                      minViews: parseInt(e.target.value) || 0
+                    }))}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Conversions minimum</label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={filters.minConversions}
+                    onChange={(e) => setFilters(prev => ({
+                      ...prev,
+                      minConversions: parseInt(e.target.value) || 0
+                    }))}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-between mt-4">
+                <div className="flex items-center">
+                  <label className="block text-sm font-medium text-gray-700 mr-2">Trier par:</label>
+                  <select
+                    className="bg-background px-3 py-2 border border-input rounded-md text-sm"
+                    value={filters.sortBy}
+                    onChange={(e) => setFilters(prev => ({ ...prev, sortBy: e.target.value }))}
+                  >
+                    <option value="views">Vues</option>
+                    <option value="conversions">Conversions</option>
+                    <option value="conversionRate">Taux de conversion</option>
+                    <option value="revenue">Chiffre d'affaires</option>
+                  </select>
+                  <select
+                    className="ml-2 bg-background px-3 py-2 border border-input rounded-md text-sm"
+                    value={filters.sortOrder}
+                    onChange={(e) => setFilters(prev => ({ ...prev, sortOrder: e.target.value as 'asc' | 'desc' }))}
+                  >
+                    <option value="desc">Décroissant</option>
+                    <option value="asc">Croissant</option>
+                  </select>
+                </div>
+                <Button variant="outline" onClick={resetFilters}>Réinitialiser</Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        
+        {/* Liste des produits */}
+        {loading.products ? (
+          <div className="grid grid-cols-1 gap-4">
+            {Array(5).fill(0).map((_, index) => (
+              <Card key={index} className="animate-pulse">
+                <CardContent className="p-6">
+                  <div className="flex items-center">
+                    <div className="h-16 w-16 bg-gray-200 rounded-md mr-4"></div>
+                    <div className="flex-1">
+                      <div className="h-5 bg-gray-200 rounded w-1/3 mb-2"></div>
+                      <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+                    </div>
+                    <div className="h-10 bg-gray-200 rounded w-20"></div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : filteredProducts.length === 0 ? (
+          <div className="text-center py-10">
+            <FiShoppingBag className="mx-auto h-12 w-12 text-gray-400" />
+            <h3 className="mt-2 text-sm font-medium text-gray-900">Aucun produit trouvé</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              Essayez de modifier vos filtres ou d'ajouter de nouveaux produits.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4">
+            {filteredProducts.map((product) => (
+              <Card key={product.id} className="overflow-hidden">
+                <CardContent className="p-0">
+                  <div className="flex flex-col md:flex-row">
+                    <div className="relative w-full md:w-32 h-32 md:h-full">
+                      <Image
+                        src={product.imageUrl || '/robot-hand.webp'}
+                        alt={product.name}
+                        fill
+                        sizes="(max-width: 768px) 100vw, 8rem"
+                        style={{ objectFit: 'cover' }}
+                      />
+                    </div>
+                    <div className="p-4 flex-1">
+                      <h3 className="font-medium">{product.name}</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
+                        <div>
+                          <p className="text-sm text-gray-500">Vues</p>
+                          <p className="text-lg font-medium flex items-center">
+                            <FiEye className="mr-1 text-blue-500" />
+                            {formatNumber(product.views)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500">Conversions</p>
+                          <p className="text-lg font-medium flex items-center">
+                            <FiShoppingCart className="mr-1 text-green-500" />
+                            {formatNumber(product.conversions)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500">Taux de conversion</p>
+                          <p className="text-lg font-medium flex items-center">
+                            {product.conversionRate >= 3 ? (
+                              <FiArrowUp className="mr-1 text-green-500" />
+                            ) : (
+                              <FiArrowDown className="mr-1 text-red-500" />
+                            )}
+                            {formatPercent(product.conversionRate)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500">Chiffre d'affaires</p>
+                          <p className="text-lg font-medium">
+                            {formatCurrency(product.revenue)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };

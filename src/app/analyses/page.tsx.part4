@@ -1,0 +1,411 @@
+export default function AnalysesPage() {
+  const { user } = useAuth();
+  
+  // États pour les données
+  const [periodData, setPeriodData] = useState<PeriodData>({ sales: [], visitors: [], returns: [] });
+  const [dashboardData, setDashboardData] = useState<DashboardData>({
+    totalSales: 0,
+    salesChange: '0%',
+    visitors: 0,
+    visitorsChange: '0%',
+    newCustomers: 0,
+    customersChange: '0%',
+    returnRate: '0%',
+    returnRateChange: '0%'
+  });
+  
+  // États pour les contrôles d'interface
+  const [activePeriod, setActivePeriod] = useState<'day' | 'week' | 'month' | 'quarter' | 'year' | 'custom'>('month');
+  const [isDateRangePickerOpen, setIsDateRangePickerOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [customDateRange, setCustomDateRange] = useState({ start: '', end: '' });
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0); // Pour forcer le rechargement des données
+  
+  // Récupérer les données du tableau de bord au chargement
+  useEffect(() => {
+    if (!user) return;
+    
+    const fetchDashboardData = async () => {
+      try {
+        const data = await getDashboardData();
+        setDashboardData(data);
+      } catch (error) {
+        console.error('Erreur lors de la récupération des données du tableau de bord:', error);
+      }
+    };
+    
+    fetchDashboardData();
+  }, [user, refreshKey]);
+  
+  // Récupérer les données pour la période sélectionnée
+  useEffect(() => {
+    if (!user) return;
+    
+    const fetchPeriodData = async () => {
+      setIsLoading(true);
+      try {
+        let data;
+        
+        if (activePeriod === 'custom' && customDateRange.start && customDateRange.end) {
+          data = await getSalesData('custom', customDateRange.start, customDateRange.end);
+        } else {
+          data = await getSalesData(activePeriod);
+        }
+        
+        setPeriodData(data);
+      } catch (error) {
+        console.error('Erreur lors de la récupération des données de période:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchPeriodData();
+  }, [user, activePeriod, customDateRange, refreshKey]);
+  
+  // Gérer le changement de période
+  const handlePeriodChange = (period: 'day' | 'week' | 'month' | 'quarter' | 'year' | 'custom') => {
+    if (period === 'custom') {
+      setIsDateRangePickerOpen(true);
+    } else {
+      setActivePeriod(period);
+    }
+  };
+  
+  // Gérer l'application de la plage de dates personnalisée
+  const handleDateRangeApply = (startDate: string, endDate: string) => {
+    setCustomDateRange({ start: startDate, end: endDate });
+    setActivePeriod('custom');
+  };
+  
+  // Gérer l'exportation des données
+  const handleExport = (format: 'csv' | 'excel' | 'pdf') => {
+    // Préparer les données pour l'exportation
+    const exportData = periodData.sales.map((item, index) => ({
+      Période: item.label,
+      Ventes: item.value,
+      Visiteurs: periodData.visitors[index]?.value || 0,
+      Retours: periodData.returns && periodData.returns[index]?.value || 0
+    }));
+    
+    // Exporter selon le format choisi
+    if (format === 'csv') {
+      exportToCSV(exportData, `Analyse_${activePeriod}_${new Date().toISOString().split('T')[0]}`);
+    } else if (format === 'excel') {
+      exportToExcel(exportData, `Analyse_${activePeriod}_${new Date().toISOString().split('T')[0]}`);
+    } else {
+      // Pour le PDF, on utiliserait une bibliothèque comme jsPDF
+      alert('Export PDF simulé. Dans une application réelle, utilisez une bibliothèque comme jsPDF.');
+    }
+    
+    setIsExportModalOpen(false);
+  };
+  
+  // Récupérer les données pour la période de comparaison
+  const getPreviousPeriodData = () => {
+    switch (activePeriod) {
+      case 'day':
+        return periodData.previousDay?.sales || null;
+      case 'week':
+        return periodData.previousWeek?.sales || null;
+      case 'month':
+        return periodData.previousMonth?.sales || null;
+      case 'quarter':
+        return periodData.previousQuarter?.sales || null;
+      case 'year':
+        return periodData.previousYear?.sales || null;
+      case 'custom':
+        // Pour une période personnalisée, on utilise le "previous" approprié selon la durée
+        if (periodData.previousDay) return periodData.previousDay.sales;
+        if (periodData.previousWeek) return periodData.previousWeek.sales;
+        if (periodData.previousMonth) return periodData.previousMonth.sales;
+        if (periodData.previousQuarter) return periodData.previousQuarter.sales;
+        if (periodData.previousYear) return periodData.previousYear.sales;
+        return null;
+      default:
+        return null;
+    }
+  };
+  
+  // Récupérer les données de visiteurs pour la période de comparaison
+  const getPreviousPeriodVisitors = () => {
+    switch (activePeriod) {
+      case 'day':
+        return periodData.previousDay?.visitors || null;
+      case 'week':
+        return periodData.previousWeek?.visitors || null;
+      case 'month':
+        return periodData.previousMonth?.visitors || null;
+      case 'quarter':
+        return periodData.previousQuarter?.visitors || null;
+      case 'year':
+        return periodData.previousYear?.visitors || null;
+      case 'custom':
+        // Pour une période personnalisée, on utilise le "previous" approprié selon la durée
+        if (periodData.previousDay) return periodData.previousDay.visitors;
+        if (periodData.previousWeek) return periodData.previousWeek.visitors;
+        if (periodData.previousMonth) return periodData.previousMonth.visitors;
+        if (periodData.previousQuarter) return periodData.previousQuarter.visitors;
+        if (periodData.previousYear) return periodData.previousYear.visitors;
+        return null;
+      default:
+        return null;
+    }
+  };
+  
+  // Récupérer les données de retours pour la période de comparaison
+  const getPreviousPeriodReturns = () => {
+    if (!periodData.returns) return null;
+    
+    switch (activePeriod) {
+      case 'day':
+        return periodData.previousDay?.returns || null;
+      case 'week':
+        return periodData.previousWeek?.returns || null;
+      case 'month':
+        return periodData.previousMonth?.returns || null;
+      case 'quarter':
+        return periodData.previousQuarter?.returns || null;
+      case 'year':
+        return periodData.previousYear?.returns || null;
+      case 'custom':
+        // Pour une période personnalisée, on utilise le "previous" approprié selon la durée
+        if (periodData.previousDay && periodData.previousDay.returns) return periodData.previousDay.returns;
+        if (periodData.previousWeek && periodData.previousWeek.returns) return periodData.previousWeek.returns;
+        if (periodData.previousMonth && periodData.previousMonth.returns) return periodData.previousMonth.returns;
+        if (periodData.previousQuarter && periodData.previousQuarter.returns) return periodData.previousQuarter.returns;
+        if (periodData.previousYear && periodData.previousYear.returns) return periodData.previousYear.returns;
+        return null;
+      default:
+        return null;
+    }
+  };
+  
+  // Titre formaté pour la période active
+  const getFormattedPeriodTitle = () => {
+    switch (activePeriod) {
+      case 'day':
+        return "Aujourd'hui";
+      case 'week':
+        return "Cette semaine";
+      case 'month':
+        return "Ce mois";
+      case 'quarter':
+        return "Ce trimestre";
+      case 'year':
+        return "Cette année";
+      case 'custom':
+        if (customDateRange.start && customDateRange.end) {
+          const start = new Date(customDateRange.start).toLocaleDateString('fr-FR');
+          const end = new Date(customDateRange.end).toLocaleDateString('fr-FR');
+          return `Du ${start} au ${end}`;
+        }
+        return "Période personnalisée";
+      default:
+        return "";
+    }
+  };
+  
+  return (
+    <>
+      <PageHeader title="Analyses et statistiques" />
+      
+      <div className="p-6">
+        {/* Tableau de bord quotidien */}
+        <DailySalesDashboard data={dashboardData} />
+        
+        {/* Contrôles de période et d'exportation */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+          <h2 className="text-2xl font-bold mb-4 md:mb-0">
+            {getFormattedPeriodTitle()}
+          </h2>
+          
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant={activePeriod === 'day' ? 'default' : 'outline'}
+              onClick={() => handlePeriodChange('day')}
+            >
+              Jour
+            </Button>
+            <Button
+              variant={activePeriod === 'week' ? 'default' : 'outline'}
+              onClick={() => handlePeriodChange('week')}
+            >
+              Semaine
+            </Button>
+            <Button
+              variant={activePeriod === 'month' ? 'default' : 'outline'}
+              onClick={() => handlePeriodChange('month')}
+            >
+              Mois
+            </Button>
+            <Button
+              variant={activePeriod === 'quarter' ? 'default' : 'outline'}
+              onClick={() => handlePeriodChange('quarter')}
+            >
+              Trimestre
+            </Button>
+            <Button
+              variant={activePeriod === 'year' ? 'default' : 'outline'}
+              onClick={() => handlePeriodChange('year')}
+            >
+              Année
+            </Button>
+            <Button
+              variant={activePeriod === 'custom' ? 'default' : 'outline'}
+              onClick={() => handlePeriodChange('custom')}
+            >
+              <FiCalendar className="mr-2" />
+              Personnalisé
+            </Button>
+            
+            <Button variant="outline" onClick={() => setRefreshKey(prev => prev + 1)}>
+              <FiRefreshCw className="mr-2" />
+              Actualiser
+            </Button>
+            
+            <Button variant="outline" onClick={() => setIsExportModalOpen(true)}>
+              <FiDownload className="mr-2" />
+              Exporter
+            </Button>
+          </div>
+        </div>
+        
+        {/* Graphiques */}
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {[1, 2, 3, 4].map((_, index) => (
+              <div key={index} className="h-72 bg-gray-100 animate-pulse rounded-lg"></div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <ModernLineChart
+              data={periodData.sales}
+              title="Chiffre d'affaires"
+              color="#3b82f6"
+              previousPeriodData={getPreviousPeriodData()}
+              currency={true}
+            />
+            
+            <ModernBarChart
+              data={periodData.visitors}
+              title="Visiteurs"
+              color="#10b981"
+              previousPeriodData={getPreviousPeriodVisitors()}
+            />
+            
+            {periodData.returns && periodData.returns.length > 0 && (
+              <ModernBarChart
+                data={periodData.returns}
+                title="Remboursements"
+                color="#ef4444"
+                previousPeriodData={getPreviousPeriodReturns()}
+                currency={true}
+              />
+            )}
+            
+            {/* Carte supplémentaire pour les informations */}
+            <Card className="h-full flex flex-col justify-center items-center text-center p-6">
+              <FiInfo className="text-4xl text-blue-500 mb-4" />
+              <h3 className="text-xl font-semibold mb-2">Analyse personnalisée</h3>
+              <p className="text-gray-600 mb-4">
+                Vous pouvez comparer les données de différentes périodes en utilisant les filtres ci-dessus.
+              </p>
+              <Button onClick={() => handlePeriodChange('custom')}>
+                Créer un rapport personnalisé
+              </Button>
+            </Card>
+          </div>
+        )}
+        
+        {/* Section "Insights" */}
+        <div className="mt-10">
+          <h2 className="text-xl font-bold mb-4">Insights</h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center mb-4">
+                  <div className="p-2 rounded-full bg-blue-100 mr-3">
+                    <FiTrendingUp className="text-blue-600" />
+                  </div>
+                  <h3 className="font-semibold">Tendance des ventes</h3>
+                </div>
+                <p className="text-gray-600">
+                  {
+                    dashboardData.salesChange.includes('+')
+                      ? `Vos ventes ont augmenté de ${dashboardData.salesChange} par rapport à la période précédente. Continuez sur cette lancée!`
+                      : dashboardData.salesChange === '0%'
+                      ? 'Vos ventes sont stables par rapport à la période précédente.'
+                      : `Vos ventes ont diminué de ${dashboardData.salesChange.replace('-', '')} par rapport à la période précédente. Analysez les causes potentielles.`
+                  }
+                </p>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center mb-4">
+                  <div className="p-2 rounded-full bg-green-100 mr-3">
+                    <FiUsers className="text-green-600" />
+                  </div>
+                  <h3 className="font-semibold">Tendance des visiteurs</h3>
+                </div>
+                <p className="text-gray-600">
+                  {
+                    dashboardData.visitorsChange.includes('+')
+                      ? `Votre nombre de visiteurs a augmenté de ${dashboardData.visitorsChange}. Vérifiez si vos ventes suivent cette tendance.`
+                      : dashboardData.visitorsChange === '0%'
+                      ? 'Votre trafic de visiteurs est stable par rapport à la période précédente.'
+                      : `Votre nombre de visiteurs a diminué de ${dashboardData.visitorsChange.replace('-', '')}. Envisagez de renforcer vos actions marketing.`
+                  }
+                </p>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center mb-4">
+                  <div className="p-2 rounded-full bg-yellow-100 mr-3">
+                    <FiActivity className="text-yellow-600" />
+                  </div>
+                  <h3 className="font-semibold">Taux de conversion</h3>
+                </div>
+                <p className="text-gray-600">
+                  {
+                    dashboardData.visitors > 0
+                      ? `Votre taux de conversion actuel est de ${((dashboardData.totalSales / dashboardData.visitors) * 100).toFixed(1)}%. ${
+                          dashboardData.salesChange.includes('+') && dashboardData.visitorsChange.includes('+')
+                            ? 'Vos ventes et visites augmentent, excellent!'
+                            : dashboardData.salesChange.includes('+') && !dashboardData.visitorsChange.includes('+')
+                            ? 'Vos ventes augmentent malgré une baisse des visites, votre conversion s\'améliore!'
+                            : !dashboardData.salesChange.includes('+') && dashboardData.visitorsChange.includes('+')
+                            ? 'Vos visites augmentent mais pas vos ventes, travaillez sur votre taux de conversion.'
+                            : 'Attention, vos ventes et visites sont en baisse.'
+                        }`
+                      : 'Pas assez de données pour calculer un taux de conversion précis.'
+                  }
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+      
+      {/* Modales */}
+      <DateRangePicker
+        isOpen={isDateRangePickerOpen}
+        onClose={() => setIsDateRangePickerOpen(false)}
+        onApply={handleDateRangeApply}
+      />
+      
+      <ExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        onExport={handleExport}
+      />
+    </>
+  );
+}

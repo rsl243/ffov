@@ -1,0 +1,266 @@
+// Tableau de bord de ventes quotidiennes
+interface DashboardProps {
+  data: DashboardData;
+}
+
+const DailySalesDashboard = ({ data }: DashboardProps) => {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <StatCard
+        title="Ventes du jour"
+        value={formatCompactCurrency(data.totalSales)}
+        change={data.salesChange}
+        icon={FiDollarSign}
+        trend={data.salesChange.includes('+') ? 'up' : data.salesChange === '0%' ? 'neutral' : 'down'}
+      />
+      
+      <StatCard
+        title="Visiteurs"
+        value={formatNumber(data.visitors)}
+        change={data.visitorsChange}
+        icon={FiUsers}
+        trend={data.visitorsChange.includes('+') ? 'up' : data.visitorsChange === '0%' ? 'neutral' : 'down'}
+      />
+      
+      <StatCard
+        title="Nouveaux clients"
+        value={formatNumber(data.newCustomers)}
+        change={data.customersChange}
+        icon={FiUserPlus}
+        trend={data.customersChange.includes('+') ? 'up' : data.customersChange === '0%' ? 'neutral' : 'down'}
+      />
+      
+      <StatCard
+        title="Taux de retour"
+        value={data.returnRate}
+        change={data.returnRateChange}
+        icon={FiRefreshCw}
+        trend={data.returnRateChange.includes('-') ? 'up' : data.returnRateChange === '0%' ? 'neutral' : 'down'}
+      />
+    </div>
+  );
+};
+
+// Composant pour le modal de sélection de période personnalisée
+interface DateRangePickerProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onApply: (startDate: string, endDate: string) => void;
+}
+
+const DateRangePicker = ({ isOpen, onClose, onApply }: DateRangePickerProps) => {
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      // Définir les dates par défaut
+      const today = new Date();
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(today.getDate() - 30);
+      
+      setStartDate(thirtyDaysAgo.toISOString().split('T')[0]);
+      setEndDate(today.toISOString().split('T')[0]);
+      setError('');
+    }
+  }, [isOpen]);
+
+  const handleApply = () => {
+    // Validation des dates
+    if (!startDate || !endDate) {
+      setError('Les deux dates sont requises');
+      return;
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    if (start > end) {
+      setError('La date de début doit être antérieure à la date de fin');
+      return;
+    }
+
+    onApply(startDate, endDate);
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <CardTitle>Sélectionner une période</CardTitle>
+            <Button variant="ghost" size="icon" onClick={onClose}>
+              <FiX />
+            </Button>
+          </div>
+          <CardDescription>
+            Choisissez une plage de dates pour afficher les données
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Date de début</label>
+            <input
+              type="date"
+              className="w-full p-2 border border-gray-300 rounded-md"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Date de fin</label>
+            <input
+              type="date"
+              className="w-full p-2 border border-gray-300 rounded-md"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+            />
+          </div>
+          {error && (
+            <div className="text-red-500 text-sm">{error}</div>
+          )}
+          <div className="flex space-x-2">
+            <Button 
+              className="flex-1" 
+              variant="outline" 
+              onClick={() => {
+                const today = new Date();
+                const sevenDaysAgo = new Date();
+                sevenDaysAgo.setDate(today.getDate() - 7);
+                setStartDate(sevenDaysAgo.toISOString().split('T')[0]);
+                setEndDate(today.toISOString().split('T')[0]);
+              }}
+            >
+              7 derniers jours
+            </Button>
+            <Button 
+              className="flex-1" 
+              variant="outline" 
+              onClick={() => {
+                const today = new Date();
+                const thirtyDaysAgo = new Date();
+                thirtyDaysAgo.setDate(today.getDate() - 30);
+                setStartDate(thirtyDaysAgo.toISOString().split('T')[0]);
+                setEndDate(today.toISOString().split('T')[0]);
+              }}
+            >
+              30 derniers jours
+            </Button>
+          </div>
+        </CardContent>
+        <CardFooter className="flex justify-end">
+          <Button onClick={handleApply}>
+            Appliquer
+          </Button>
+        </CardFooter>
+      </Card>
+    </div>
+  );
+};
+
+// Fonction pour exporter les données au format CSV
+const exportToCSV = (data: any[], filename: string) => {
+  // Convertir les données en format CSV
+  const headers = Object.keys(data[0]).join(',');
+  const rows = data.map(row => Object.values(row).join(','));
+  const csv = [headers, ...rows].join('\n');
+  
+  // Créer un élément "a" pour télécharger le fichier
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `${filename}.csv`);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
+// Fonction pour exporter les données au format Excel (XLSX)
+const exportToExcel = (data: any[], filename: string) => {
+  // Simuler l'exportation vers Excel (dans une implémentation réelle, utilisez une bibliothèque comme xlsx)
+  alert(`Export vers Excel simulé pour ${filename}`);
+};
+
+// Composant pour le modal d'exportation
+interface ExportModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onExport: (format: 'csv' | 'excel' | 'pdf') => void;
+}
+
+const ExportModal = ({ isOpen, onClose, onExport }: ExportModalProps) => {
+  const [format, setFormat] = useState<'csv' | 'excel' | 'pdf'>('csv');
+  const [includeComparison, setIncludeComparison] = useState(true);
+  
+  if (!isOpen) return null;
+  
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <CardTitle>Exporter les données</CardTitle>
+            <Button variant="ghost" size="icon" onClick={onClose}>
+              <FiX />
+            </Button>
+          </div>
+          <CardDescription>
+            Choisissez le format d'exportation souhaité
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col space-y-2">
+            <label className="inline-flex items-center">
+              <input
+                type="radio"
+                className="h-4 w-4 text-blue-600"
+                checked={format === 'csv'}
+                onChange={() => setFormat('csv')}
+              />
+              <span className="ml-2">CSV</span>
+            </label>
+            <label className="inline-flex items-center">
+              <input
+                type="radio"
+                className="h-4 w-4 text-blue-600"
+                checked={format === 'excel'}
+                onChange={() => setFormat('excel')}
+              />
+              <span className="ml-2">Excel</span>
+            </label>
+            <label className="inline-flex items-center">
+              <input
+                type="radio"
+                className="h-4 w-4 text-blue-600"
+                checked={format === 'pdf'}
+                onChange={() => setFormat('pdf')}
+              />
+              <span className="ml-2">PDF</span>
+            </label>
+          </div>
+          <div className="pt-4 border-t">
+            <label className="inline-flex items-center">
+              <input
+                type="checkbox"
+                className="h-4 w-4 text-blue-600"
+                checked={includeComparison}
+                onChange={(e) => setIncludeComparison(e.target.checked)}
+              />
+              <span className="ml-2">Inclure les données de comparaison</span>
+            </label>
+          </div>
+        </CardContent>
+        <CardFooter className="flex justify-end">
+          <Button onClick={() => onExport(format)}>
+            Exporter
+          </Button>
+        </CardFooter>
+      </Card>
+    </div>
+  );

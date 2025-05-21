@@ -1,0 +1,106 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SubscriptionType {
+  VILLE
+  REGION
+  PAYS
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  USER
+}
+
+enum ValidationStatus {
+  DRAFT
+  PENDING
+  VALIDATED
+  REJECTED
+}
+
+model Organization {
+  id              String           @id @default(uuid())
+  name            String
+  subscriptionType SubscriptionType
+  region          String?
+  status          ValidationStatus @default(DRAFT)
+  siret           String           @unique
+  vatNumber       String?
+  legalAddress    String
+  contactEmail    String
+  contactPhone    String
+  documents       Document[]
+  locations       Location[]
+  users           User[]
+  validationHistory ValidationHistory[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+model Location {
+  id             String            @id @default(uuid())
+  organizationId  String
+  name            String
+  street          String
+  city            String
+  postalCode      String
+  country         String
+  additionalInfo  String?
+  status          String            @default("active")
+  organization    Organization      @relation(fields: [organizationId], references: [id])
+  users           User[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+}
+
+model User {
+  id             String       @id @default(uuid())
+  organizationId  String
+  locationId      String?
+  email           String       @unique
+  password        String
+  name            String
+  role            UserRole
+  active          Boolean      @default(false)
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  location        Location?    @relation(fields: [locationId], references: [id])
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+model Document {
+  id             String       @id @default(uuid())
+  organizationId  String
+  type            String       // kbis, id, etc.
+  filename        String
+  path            String
+  uploadedAt      DateTime     @default(now())
+  validatedAt     DateTime?
+  organization    Organization @relation(fields: [organizationId], references: [id])
+}
+
+model ValidationHistory {
+  id             String       @id @default(uuid())
+  organizationId  String
+  status          ValidationStatus
+  comment         String?
+  validatedBy     String        // ID de l'admin FBOA
+  createdAt       DateTime     @default(now())
+  organization    Organization @relation(fields: [organizationId], references: [id])
+}
+
+model Message {
+  id         String   @id @default(uuid())
+  content    String
+  senderId   String
+  receiverId String
+  createdAt  DateTime @default(now())
+}

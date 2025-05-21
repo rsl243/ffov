@@ -1,0 +1,175 @@
+  // Rendu des plans d'abonnement
+  const renderSubscriptionPlans = () => {
+    return (
+      <div className="p-6">
+        <div className="mb-6">
+          <h2 className="text-xl font-semibold">Plans d'abonnement</h2>
+          <p className="text-gray-500 mt-1">Choisissez le plan qui correspond le mieux à vos besoins.</p>
+        </div>
+        
+        {loading.plans ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {Array(3).fill(0).map((_, index) => (
+              <Card key={index} className="animate-pulse">
+                <CardHeader className="pb-2">
+                  <div className="h-6 bg-gray-200 rounded w-1/3 mb-2"></div>
+                  <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-8 bg-gray-200 rounded w-1/2 mb-4"></div>
+                  <div className="space-y-2">
+                    {Array(4).fill(0).map((_, i) => (
+                      <div key={i} className="flex">
+                        <div className="h-4 w-4 bg-gray-200 rounded-full mr-2"></div>
+                        <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+                <CardFooter className="pt-4">
+                  <div className="h-10 bg-gray-200 rounded w-full"></div>
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {subscriptionPlans.map((plan) => (
+              <Card key={plan.id} className={`relative ${plan.mostPopular ? 'border-blue-500 shadow-lg' : ''}`}>
+                {plan.mostPopular && (
+                  <div className="absolute top-0 right-0 bg-blue-500 text-white px-4 py-1 text-xs">
+                    Populaire
+                  </div>
+                )}
+                <CardHeader>
+                  <CardTitle className="text-xl font-semibold">{plan.name}</CardTitle>
+                  <CardDescription>{plan.description}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="mb-6">
+                    <span className="text-3xl font-bold">{formatCurrency(plan.price)}</span>
+                    <span className="text-gray-500 ml-2">/ {plan.billingCycle === 'monthly' ? 'mois' : 'an'}</span>
+                  </div>
+                  <ul className="space-y-2">
+                    {plan.features.map((feature, index) => (
+                      <li key={index} className="flex">
+                        <FiCheckCircle className="text-green-500 mr-2 flex-shrink-0 mt-1" />
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+                <CardFooter>
+                  <Button
+                    className="w-full"
+                    variant={currentPlan === plan.id ? "outline" : "default"}
+                    disabled={loading.subscription || (currentPlan === plan.id && userSubscription?.status === 'active')}
+                    onClick={() => handlePlanChange(plan.id)}
+                  >
+                    {currentPlan === plan.id && userSubscription?.status === 'active' 
+                      ? 'Plan actuel' 
+                      : currentPlan === plan.id && userSubscription?.status === 'canceled'
+                      ? 'Réactiver ce plan'
+                      : 'Sélectionner ce plan'}
+                  </Button>
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+        )}
+        
+        {/* Statut de l'abonnement */}
+        {userSubscription && (
+          <div className="mt-10">
+            <Card>
+              <CardHeader>
+                <CardTitle>Votre abonnement</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="text-gray-500">Statut</p>
+                    <Badge variant={userSubscription.status === 'active' ? 'default' : 'destructive'}>
+                      {userSubscription.status === 'active' ? 'Actif' : 'Annulé'}
+                    </Badge>
+                  </div>
+                  
+                  <div>
+                    <p className="text-gray-500">Prochain renouvellement</p>
+                    <p className="font-medium">
+                      {userSubscription.status === 'active' 
+                        ? format(new Date(userSubscription.currentPeriodEnd), 'dd MMMM yyyy', { locale: fr }) 
+                        : 'N/A'}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    {userSubscription.status === 'active' && userSubscription.canCancel ? (
+                      showCancelConfirm ? (
+                        <div className="flex space-x-2">
+                          <Button variant="outline" onClick={() => setShowCancelConfirm(false)}>
+                            Non
+                          </Button>
+                          <Button variant="destructive" onClick={handleCancelSubscription}>
+                            Oui, annuler
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button variant="destructive" onClick={() => setShowCancelConfirm(true)}>
+                          Annuler l'abonnement
+                        </Button>
+                      )
+                    ) : null}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </div>
+    );
+  };
+  
+  return (
+    <>
+      {/* Top Navigation */}
+      <PageHeader title="Finance" />
+      
+      {/* Tabs */}
+      <Tabs defaultValue="resume" value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="w-full justify-start border-b bg-transparent p-0">
+          <TabsTrigger
+            value="resume"
+            className="px-6 py-3 text-sm font-medium data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:text-blue-600 rounded-none"
+          >
+            Résumé financier
+          </TabsTrigger>
+          <TabsTrigger
+            value="transactions"
+            className="px-6 py-3 text-sm font-medium data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:text-blue-600 rounded-none"
+          >
+            Transactions
+          </TabsTrigger>
+          <TabsTrigger
+            value="subscription"
+            className="px-6 py-3 text-sm font-medium data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:text-blue-600 rounded-none"
+          >
+            Abonnement
+          </TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="resume" className="mt-0 p-0">
+          {renderFinancialSummary()}
+        </TabsContent>
+        
+        <TabsContent value="transactions" className="mt-0 p-0">
+          {renderTransactions()}
+        </TabsContent>
+        
+        <TabsContent value="subscription" className="mt-0 p-0">
+          {renderSubscriptionPlans()}
+        </TabsContent>
+      </Tabs>
+    </>
+  );
+}

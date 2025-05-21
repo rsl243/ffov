@@ -1,0 +1,200 @@
+"use client";
+
+import React, { useState, useEffect } from 'react';
+import { FiArrowUp, FiArrowDown, FiCreditCard, FiShoppingBag, FiPercent, FiDollarSign, FiCheckCircle, FiFilter, FiCalendar, FiSearch, FiDownload } from 'react-icons/fi';
+import PageHeader from '@/components/PageHeader';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
+import { FinancialStats, Transaction, SubscriptionPlan, UserSubscription, getFinancialStats, getTransactions, getSubscriptionPlans, getUserSubscription, updateUserSubscription, cancelUserSubscription, getUpcomingPayments } from '@/lib/financeService';
+import { formatCurrency, formatPercent } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
+
+export default function FinancePage() {
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState('resume');
+  const [currentPlan, setCurrentPlan] = useState<string | null>(null);
+  const [financialStats, setFinancialStats] = useState<FinancialStats>({
+    revenue: { total: 0, previousPeriod: 0, changePercent: 0 },
+    sales: { total: 0, previousPeriod: 0, changePercent: 0 },
+    averageOrderValue: { current: 0, previousPeriod: 0, changePercent: 0 },
+    refunds: { total: 0, previousPeriod: 0, changePercent: 0 }
+  });
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>([]);
+  const [userSubscription, setUserSubscription] = useState<UserSubscription | null>(null);
+  const [upcomingPayments, setUpcomingPayments] = useState<any[]>([]);
+  const [loading, setLoading] = useState({
+    stats: true,
+    transactions: true,
+    plans: true,
+    subscription: true
+  });
+  const [statsPeriod, setStatsPeriod] = useState<'month' | 'quarter' | 'year'>('month');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [transactionFilters, setTransactionFilters] = useState({
+    type: 'all',
+    status: 'all',
+    startDate: '',
+    endDate: '',
+    searchTerm: ''
+  });
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  
+  // Récupérer les statistiques financières au chargement
+  useEffect(() => {
+    const loadFinancialStats = async () => {
+      if (!user) return;
+      
+      setLoading(prev => ({ ...prev, stats: true }));
+      try {
+        const stats = await getFinancialStats(statsPeriod);
+        setFinancialStats(stats);
+      } catch (error) {
+        console.error("Erreur lors du chargement des statistiques:", error);
+      } finally {
+        setLoading(prev => ({ ...prev, stats: false }));
+      }
+    };
+    
+    loadFinancialStats();
+  }, [user, statsPeriod]);
+  
+  // Récupérer les transactions au chargement
+  useEffect(() => {
+    const loadTransactions = async () => {
+      if (!user) return;
+      
+      setLoading(prev => ({ ...prev, transactions: true }));
+      try {
+        const response = await getTransactions(
+          currentPage,
+          10,
+          transactionFilters.type as any,
+          transactionFilters.status as any,
+          transactionFilters.startDate,
+          transactionFilters.endDate,
+          transactionFilters.searchTerm
+        );
+        setTransactions(response.transactions);
+        setTotalPages(response.totalPages);
+      } catch (error) {
+        console.error("Erreur lors du chargement des transactions:", error);
+      } finally {
+        setLoading(prev => ({ ...prev, transactions: false }));
+      }
+    };
+    
+    loadTransactions();
+  }, [user, currentPage, transactionFilters]);
+  
+  // Récupérer les plans d'abonnement au chargement
+  useEffect(() => {
+    const loadSubscriptionPlans = async () => {
+      if (!user) return;
+      
+      setLoading(prev => ({ ...prev, plans: true }));
+      try {
+        const plans = await getSubscriptionPlans();
+        setSubscriptionPlans(plans);
+      } catch (error) {
+        console.error("Erreur lors du chargement des plans d'abonnement:", error);
+      } finally {
+        setLoading(prev => ({ ...prev, plans: false }));
+      }
+    };
+    
+    loadSubscriptionPlans();
+  }, [user]);
+  
+  // Récupérer l'abonnement de l'utilisateur au chargement
+  useEffect(() => {
+    const loadUserSubscription = async () => {
+      if (!user) return;
+      
+      setLoading(prev => ({ ...prev, subscription: true }));
+      try {
+        const subscription = await getUserSubscription();
+        setUserSubscription(subscription);
+        if (subscription) {
+          setCurrentPlan(subscription.planId);
+          
+          // Récupérer les paiements à venir
+          const payments = await getUpcomingPayments();
+          setUpcomingPayments(payments);
+        }
+      } catch (error) {
+        console.error("Erreur lors du chargement de l'abonnement:", error);
+      } finally {
+        setLoading(prev => ({ ...prev, subscription: false }));
+      }
+    };
+    
+    loadUserSubscription();
+  }, [user]);
+  
+  // Gérer le changement de période des statistiques
+  const handlePeriodChange = (period: 'month' | 'quarter' | 'year') => {
+    setStatsPeriod(period);
+  };
+  
+  // Gérer la pagination des transactions
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+  
+  // Gérer le changement de filtre des transactions
+  const handleFilterChange = (filter: string, value: string) => {
+    setTransactionFilters(prev => ({ ...prev, [filter]: value }));
+    setCurrentPage(1); // Réinitialiser la pagination
+  };
+  
+  // Gérer le changement de plan d'abonnement
+  const handlePlanChange = async (planId: string) => {
+    if (!user) return;
+    
+    setLoading(prev => ({ ...prev, subscription: true }));
+    try {
+      const success = await updateUserSubscription(planId);
+      if (success) {
+        setCurrentPlan(planId);
+        // Recharger l'abonnement
+        const subscription = await getUserSubscription();
+        setUserSubscription(subscription);
+        // Recharger les paiements à venir
+        const payments = await getUpcomingPayments();
+        setUpcomingPayments(payments);
+      }
+    } catch (error) {
+      console.error("Erreur lors de la mise à jour de l'abonnement:", error);
+    } finally {
+      setLoading(prev => ({ ...prev, subscription: false }));
+    }
+  };
+  
+  // Gérer l'annulation de l'abonnement
+  const handleCancelSubscription = async () => {
+    if (!user || !userSubscription) return;
+    
+    setLoading(prev => ({ ...prev, subscription: true }));
+    try {
+      const success = await cancelUserSubscription();
+      if (success) {
+        // Recharger l'abonnement
+        const subscription = await getUserSubscription();
+        setUserSubscription(subscription);
+        setShowCancelConfirm(false);
+        // Réinitialiser les paiements à venir
+        setUpcomingPayments([]);
+      }
+    } catch (error) {
+      console.error("Erreur lors de l'annulation de l'abonnement:", error);
+    } finally {
+      setLoading(prev => ({ ...prev, subscription: false }));
+    }
+  };
